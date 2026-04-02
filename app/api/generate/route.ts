@@ -104,15 +104,22 @@ export async function POST(request: Request) {
     ) {
       const projHint =
         message.includes("sk-proj") || message.includes("sk-proj-")
-          ? " sk-proj- で始まるキーは、そのキーを発行したプロジェクトの ID を .env.local の OPENAI_PROJECT_ID に設定してください（platform.openai.com → Projects → 該当プロジェクト → Settings → General）。"
+          ? "（1）APIキーは「そのプロジェクト」画面の API keys で新規発行した sk-proj- キーを使う（別プロジェクトやアカウント全体のキーだと無効になります）。（2）OPENAI_PROJECT_ID は proj_ で始まる Project ID です。org_ は Organization ID なので OPENAI_ORG_ID 用です。（3）複数組織の場合は OPENAI_ORG_ID（org_…）も .env.local に追加。（4）保存後に npm run dev を再起動。"
           : "";
-      errorText =
-        `OpenAI API の認証に失敗しました。${projHint} OPENAI_API_KEY を確認し、保存後に開発サーバー（npm run dev）を再起動してください。`;
+      errorText = `OpenAI API の認証に失敗しました。${projHint}`;
     } else if (message.includes("insufficient_quota")) {
       errorText =
         "OpenAI の利用枠が不足しています。アカウントを確認してください。";
     }
 
-    return NextResponse.json({ error: errorText }, { status: 500 });
+    const isAuthFailure =
+      err instanceof AuthenticationError ||
+      message.includes("401") ||
+      message.includes("Incorrect API key");
+
+    return NextResponse.json(
+      { error: errorText },
+      { status: isAuthFailure ? 401 : 500 }
+    );
   }
 }

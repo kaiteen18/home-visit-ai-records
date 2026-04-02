@@ -8,6 +8,8 @@ import {
 } from "@/lib/prompts";
 
 let client: OpenAI | null = null;
+/** 環境が変わったときにクライアントを作り直す（.env 更新や HMR で古いインスタンスを使い続けない） */
+let clientEnvSignature = "";
 
 const REVISION_SYSTEM_PROMPT = `
 あなたは訪問看護記録の修正支援AIです。
@@ -25,14 +27,28 @@ const REVISION_SYSTEM_PROMPT = `
 ・出力は完成した記録のみ（説明不要）
 `;
 
+function getOpenAIEnvSignature(): string {
+  const e = getOpenAIEnv();
+  return [e.apiKey, e.project ?? "", e.organization ?? ""].join("\t");
+}
+
 export function getOpenAI(): OpenAI {
-  if (!client) {
+  const sig = getOpenAIEnvSignature();
+  if (!client || clientEnvSignature !== sig) {
     const { apiKey, organization, project } = getOpenAIEnv();
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        "[OpenAI] クライアント初期化:",
+        project ? `OPENAI_PROJECT_ID=${project.slice(0, 12)}…` : "OPENAI_PROJECT_ID=（未設定）",
+        organization ? `OPENAI_ORG_ID=${organization.slice(0, 10)}…` : "",
+      );
+    }
     client = new OpenAI({
       apiKey,
       ...(organization ? { organization } : {}),
       ...(project ? { project } : {}),
     });
+    clientEnvSignature = sig;
   }
   return client;
 }
