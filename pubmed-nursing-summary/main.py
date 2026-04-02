@@ -33,7 +33,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # 定数・パス設定
 # =============================================================================
 # OpenAI API キー（ここに直接設定してください）
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY ="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"
 
 # X (Twitter) API 認証情報（tweepy 用。投稿する場合に設定）
 X_API_KEY = ""              # Consumer Key (API Key)
