@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganizationId } from "@/lib/get-organization-id";
 import { getSupabase } from "@/lib/supabase";
 
+/** DB に存在する列のみ。patient_code / name は参照しない（patient_name を使用） */
+const PATIENTS_LIST_SELECT = "id, patient_name" as const;
+
 /** 患者一覧取得（ログインユーザーの organization に属する患者のみ） */
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from("patients")
-      .select("id, patient_name")
+      .select(PATIENTS_LIST_SELECT)
       .eq("organization_id", organizationId)
       .order("patient_name");
 
