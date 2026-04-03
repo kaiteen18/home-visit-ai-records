@@ -98,7 +98,7 @@ export async function PATCH(
         v !== undefined && v !== null && typeof v === "string"
           ? v.trim()
           : "";
-      if (!trimmed) {
+      if (!trimmed || !isUuidString(trimmed)) {
         return NextResponse.json(
           { error: "患者を選択してください。" },
           { status: 400 }
