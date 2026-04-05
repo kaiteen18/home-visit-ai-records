@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     const patients = data ?? [];
-    return NextResponse.json({ patients });
+    return NextResponse.json({ patients, debug: "api/patients-v3" });
   } catch (err) {
     console.error("[api/patients GET] fetch/接続エラー 詳細:", {
       name: err instanceof Error ? err.name : "Unknown",
@@ -48,8 +48,12 @@ export async function GET(request: NextRequest) {
       stack: err instanceof Error ? err.stack : undefined,
       cause: err instanceof Error ? err.cause : undefined,
     });
+  
     return NextResponse.json(
-      { error: "予期しないエラーが発生しました。" },
+      {
+        error: "予期しないエラーが発生しました。",
+        debug: "api/patients-v3",
+      },
       { status: 500 }
     );
   }
