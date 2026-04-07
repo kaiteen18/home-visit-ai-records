@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { isUuidString } from "@/lib/is-uuid";
 import { getSupabase } from "@/lib/supabase";
 import { RecordDetailForm } from "@/components/record-detail-form";
 import type { RecordDetail } from "@/types";
@@ -51,6 +52,9 @@ export default async function RecordDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  if (!isUuidString(id)) {
+    notFound();
+  }
   const record = await getRecord(id);
 
   if (!record) {

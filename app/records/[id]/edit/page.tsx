@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { RecordEditForm } from "@/components/record-edit-form";
+import { isUuidString } from "@/lib/is-uuid";
 
 /**
  * useParams の id は Next のルートによって string | string[] になり得るため、必ず単一の string に正規化する。
@@ -42,6 +43,19 @@ export default function RecordEditPage() {
           <p className="font-medium">記録IDが指定されていません。</p>
           <p className="mt-2 text-sm">
             URL が正しいか確認し、一覧から「編集」から開き直してください。
+          </p>
+          <Link
+            href="/records"
+            className="mt-4 inline-block text-accent underline hover:text-teal-700"
+          >
+            一覧へ戻る
+          </Link>
+        </div>
+      ) : !isUuidString(id) ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800">
+          <p className="font-medium">記録IDの形式が正しくありません。</p>
+          <p className="mt-2 text-sm">
+            一覧から「編集」で開き直してください。
           </p>
           <Link
             href="/records"

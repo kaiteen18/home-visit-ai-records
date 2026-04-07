@@ -45,7 +45,7 @@ export function RecordDetailForm({ record }: Props) {
 
     try {
       const result = await fetchApi<{ error?: string }>(
-        `/api/records/${record.id}`,
+        `/api/records/${encodeURIComponent(record.id)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

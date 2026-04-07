@@ -1,6 +1,6 @@
 import type { RecordListApiItem } from "@/types";
 
-/** Supabase / JSON 由来の id を URL・API 用の文字列に統一（数値の bigserial でも string 化） */
+/** Supabase / JSON 由来の id を URL・API 用の文字列に統一（UUID 文字列は trim のみ） */
 export function recordIdToString(value: unknown): string {
   if (value === undefined || value === null) return "";
   if (typeof value === "string") return value.trim();

@@ -30,7 +30,7 @@ export async function GET() {
     }
 
     const rows = (data ?? []) as Array<{
-      id: string | number;
+      id: string;
       patient_id: string | null;
       prompt_type: string | null;
       created_at: string;
@@ -45,7 +45,7 @@ export async function GET() {
         ? patients[0]?.patient_name
         : patients?.patient_name;
       return {
-        id: recordIdToString(r.id),
+        id: r.id,
         patient_id: r.patient_id,
         patient_name: patientName ?? null,
         prompt_type: r.prompt_type ?? "dar",
