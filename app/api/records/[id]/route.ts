@@ -202,10 +202,11 @@ export async function PATCH(
       .maybeSingle();
 
     if (error) {
-      console.error("[api/records/[id] PATCH] Supabase update error:", {
+      console.error("[api/records/[id] PATCH] Supabase error:", {
         message: error.message,
         code: error.code,
-        id,
+        details: error.details,
+        hint: error.hint,
       });
       const msg = error.message ?? "";
       if (
@@ -221,7 +222,7 @@ export async function PATCH(
         );
       }
       return NextResponse.json(
-        { error: "保存に失敗しました。" },
+        { error: `更新に失敗しました: ${error.message}` },
         { status: 500 }
       );
     }
