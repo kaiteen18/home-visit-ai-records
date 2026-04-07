@@ -13,46 +13,48 @@ function trimEnv(value: string | undefined): string | undefined {
   return t === "" ? undefined : t;
 }
 
-let warnedOpenAiKeyMismatchWithEnvLocal = false;
+let envLocalParsed: Record<string, string> | null = null;
 
-/**
- * Next.js は「シェルに既にある環境変数」を .env.local で上書きしない。
- * そのため ~/.zshrc 等で古い OPENAI_API_KEY を export していると、.env.local の新しいキーが無視され 401 になる。
- */
-function warnIfOpenAiKeyDiffersFromEnvLocalFile(processKey: string): void {
-  if (
-    process.env.NODE_ENV !== "development" ||
-    warnedOpenAiKeyMismatchWithEnvLocal ||
-    !processKey
-  ) {
-    return;
-  }
-  warnedOpenAiKeyMismatchWithEnvLocal = true;
+/** プロジェクト直下の .env.local をパース（キャッシュ）。本番では通常ファイルなし。 */
+function readEnvLocalMap(): Record<string, string> {
+  if (envLocalParsed !== null) return envLocalParsed;
+  envLocalParsed = {};
   try {
     const envPath = path.join(process.cwd(), ".env.local");
-    if (!fs.existsSync(envPath)) return;
+    if (!fs.existsSync(envPath)) return envLocalParsed;
     const raw = fs.readFileSync(envPath, "utf8");
-    const line = raw.split("\n").find((l) => {
-      const t = l.trim();
-      return t.startsWith("OPENAI_API_KEY=") && !t.startsWith("#");
-    });
-    if (!line) return;
-    const eq = line.indexOf("=");
-    let fileVal = line.slice(eq + 1).trim();
-    if (
-      (fileVal.startsWith('"') && fileVal.endsWith('"')) ||
-      (fileVal.startsWith("'") && fileVal.endsWith("'"))
-    ) {
-      fileVal = fileVal.slice(1, -1);
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq <= 0) continue;
+      const k = trimmed.slice(0, eq).trim();
+      let v = trimmed.slice(eq + 1).trim();
+      if (
+        (v.startsWith('"') && v.endsWith('"')) ||
+        (v.startsWith("'") && v.endsWith("'"))
+      ) {
+        v = v.slice(1, -1);
+      }
+      envLocalParsed[k] = v.replace(/^\uFEFF/, "").trim();
     }
-    fileVal = trimEnv(fileVal) ?? "";
-    if (!fileVal || fileVal === processKey) return;
-    console.warn(
-      "[OpenAI] 警告: .env.local の OPENAI_API_KEY と、実行環境の OPENAI_API_KEY（シェル優先）が異なります。古いキーで 401 になることがあります。ターミナルで unset OPENAI_API_KEY を実行してから npm run dev をやり直すか、シェルの値を更新してください。"
-    );
   } catch {
     /* ignore */
   }
+  return envLocalParsed;
+}
+
+/**
+ * OpenAI 用: .env.local の値を process.env より優先する。
+ * Next はシェルに既にある変数を .env で上書きしないため、シェルの古い OPENAI_API_KEY だけが効いて 401 になるのを防ぐ。
+ */
+function pickOpenAiEnv(
+  name: "OPENAI_API_KEY" | "OPENAI_PROJECT_ID" | "OPENAI_ORG_ID" | "OPENAI_MODEL"
+): string | undefined {
+  const fileMap = readEnvLocalMap();
+  const fromFile = trimEnv(fileMap[name]);
+  if (fromFile) return fromFile;
+  return trimEnv(process.env[name]);
 }
 
 export function getEnv() {
@@ -97,15 +99,22 @@ export type OpenAIEnv = {
   project?: string;
 };
 
-/** OpenAI 用: APIキー・プロジェクトID 等（前後の空白・BOM は除去） */
+/** OpenAI 用: APIキー・プロジェクトID 等（前後の空白・BOM は除去。.env.local を優先） */
 export function getOpenAIEnv(): OpenAIEnv {
-  const raw = process.env.OPENAI_API_KEY;
-  const model = trimEnv(process.env.OPENAI_MODEL) ?? "gpt-4o-mini";
-  const organization = trimEnv(process.env.OPENAI_ORG_ID);
-  const project = trimEnv(process.env.OPENAI_PROJECT_ID);
+  const key = pickOpenAiEnv("OPENAI_API_KEY") ?? "";
+  const project = pickOpenAiEnv("OPENAI_PROJECT_ID");
+  const organization = pickOpenAiEnv("OPENAI_ORG_ID");
+  const model = pickOpenAiEnv("OPENAI_MODEL") ?? "gpt-4o-mini";
 
-  const key = trimEnv(raw) ?? "";
-  warnIfOpenAiKeyDiffersFromEnvLocalFile(key);
+  if (process.env.NODE_ENV === "development") {
+    const procOnly = trimEnv(process.env.OPENAI_API_KEY);
+    const fileFirst = trimEnv(readEnvLocalMap()["OPENAI_API_KEY"]);
+    if (fileFirst && procOnly && fileFirst !== procOnly && key === fileFirst) {
+      console.log(
+        "[OpenAI] .env.local の OPENAI_API_KEY を使用しています（シェル環境の値とは異なります）。"
+      );
+    }
+  }
 
   if (!key) {
     throw new Error(

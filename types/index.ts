@@ -37,3 +37,17 @@ export type RecordListApiItem = {
   final_text: string | null;
   ai_output: string | null;
 };
+
+/** GET /api/records/[id] のレスポンス（編集画面用） */
+export type RecordDetailApiResponse = {
+  id: string;
+  patient_id: string | null;
+  organization_id: string | number | null;
+  patient_name: string | null;
+  input_text: string;
+  previous_record: string;
+  ai_output: string;
+  final_text: string;
+  prompt_type: string;
+  created_at: string;
+};

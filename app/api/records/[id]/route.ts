@@ -9,20 +9,107 @@ function toText(value: unknown, fallback = ""): string {
   return String(value);
 }
 
+type RecordRow = {
+  id: string;
+  patient_id: string | null;
+  organization_id: string | number | null;
+  input_text: string | null;
+  previous_record: string | null;
+  ai_output: string | null;
+  final_text: string | null;
+  prompt_type: string | null;
+  created_at: string;
+  patients: { patient_name: string } | { patient_name: string }[] | null;
+};
+
+/** GET: 1件取得（編集画面用） */
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+
+    if (!id || !isUuidString(id)) {
+      return NextResponse.json(
+        { error: "レコードIDが不正です。" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+      .from("records")
+      .select(
+        "id, patient_id, organization_id, input_text, previous_record, ai_output, final_text, prompt_type, created_at, patients(patient_name)"
+      )
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[api/records/[id] GET] Supabase select error:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        id,
+      });
+      return NextResponse.json(
+        { error: `記録の取得に失敗しました: ${error.message}` },
+        { status: 500 }
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: "記録が見つかりません。" },
+        { status: 404 }
+      );
+    }
+
+    const row = data as RecordRow;
+    const patients = row.patients;
+    const patientName = Array.isArray(patients)
+      ? patients[0]?.patient_name
+      : patients?.patient_name;
+
+    return NextResponse.json({
+      id: row.id,
+      patient_id: row.patient_id,
+      organization_id: row.organization_id,
+      patient_name: patientName ?? null,
+      input_text: row.input_text ?? "",
+      previous_record: row.previous_record ?? "",
+      ai_output: row.ai_output ?? "",
+      final_text: row.final_text ?? "",
+      prompt_type: row.prompt_type ?? "dar",
+      created_at: row.created_at,
+    });
+  } catch (err) {
+    console.error("[api/records/[id] GET] unexpected:", err);
+    return NextResponse.json(
+      { error: "予期しないエラーが発生しました。" },
+      { status: 500 }
+    );
+  }
+}
+
+/** PATCH: 既存レコード更新（organization_id は変更しない） */
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params;
-    const body = await request.json().catch(() => null);
 
-    if (!id) {
+    if (!id || !isUuidString(id)) {
       return NextResponse.json(
-        { error: "レコードIDが指定されていません。" },
+        { error: "レコードIDが不正です。" },
         { status: 400 }
       );
     }
+
+    const body = await request.json().catch(() => null);
 
     if (body === null || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json(
@@ -48,7 +135,7 @@ export async function PATCH(
 
     const supabase = getSupabase();
 
-    const updatePayload: Record<string, string | null> = {
+    const updatePayload: Record<string, string> = {
       updated_at: new Date().toISOString(),
     };
 
@@ -107,13 +194,19 @@ export async function PATCH(
       updatePayload.patient_id = trimmed;
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("records")
       .update(updatePayload)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
 
     if (error) {
-      console.error("Supabase update error:", error);
+      console.error("[api/records/[id] PATCH] Supabase update error:", {
+        message: error.message,
+        code: error.code,
+        id,
+      });
       const msg = error.message ?? "";
       if (
         msg.includes("column") &&
@@ -122,7 +215,7 @@ export async function PATCH(
         return NextResponse.json(
           {
             error:
-              "DB に previous_record / prompt_type カラムがありません。Supabase のマイグレーションを適用してください。",
+              "DB に必要なカラムがありません。Supabase のマイグレーションを適用してください。",
           },
           { status: 500 }
         );
@@ -133,9 +226,17 @@ export async function PATCH(
       );
     }
 
+    if (!updated) {
+      console.error("[api/records/[id] PATCH] no row updated for id:", id);
+      return NextResponse.json(
+        { error: "記録が見つかりません。" },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
-    console.error("Records PATCH error:", err);
+    console.error("[api/records/[id] PATCH] unexpected:", err);
     return NextResponse.json(
       { error: "予期しないエラーが発生しました。" },
       { status: 500 }

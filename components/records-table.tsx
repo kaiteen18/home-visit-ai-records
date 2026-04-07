@@ -55,8 +55,8 @@ export function RecordsTable({ records }: Props) {
             <th className="px-4 py-3 text-sm font-medium text-slate-700">
               最終版テキスト
             </th>
-            <th className="w-20 px-4 py-3 text-sm font-medium text-slate-700">
-              <span className="sr-only">詳細</span>
+            <th className="w-24 px-4 py-3 text-sm font-medium text-slate-700">
+              操作
             </th>
           </tr>
         </thead>
@@ -79,12 +79,20 @@ export function RecordsTable({ records }: Props) {
                 {getDisplayText(record)}
               </td>
               <td className="px-4 py-3">
-                <Link
-                  href={`/records/${record.id}`}
-                  className="text-sm text-accent underline hover:text-teal-700"
-                >
-                  詳細を見る
-                </Link>
+                <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
+                  <Link
+                    href={`/records/${record.id}/edit`}
+                    className="text-sm text-accent underline hover:text-teal-700"
+                  >
+                    編集
+                  </Link>
+                  <Link
+                    href={`/records/${record.id}`}
+                    className="text-sm text-slate-600 underline hover:text-ink"
+                  >
+                    詳細
+                  </Link>
+                </div>
               </td>
             </tr>
           ))}
