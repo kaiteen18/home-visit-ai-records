@@ -1,15 +1,7 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseEnv } from "@/lib/env";
-
-let serverClient: SupabaseClient | null = null;
-
 /**
- * Supabase クライアント（publishable key / anon key 使用、RLS 前提）
+ * @deprecated 個別に import してください:
+ * - `createSupabaseBrowserClient` → `@/lib/supabase/client`
+ * - `createSupabaseServerClient` → `@/lib/supabase/server`
  */
-export function getSupabase(): SupabaseClient {
-  if (!serverClient) {
-    const { url, key } = getSupabaseEnv();
-    serverClient = createClient(url, key);
-  }
-  return serverClient;
-}
+export { createSupabaseBrowserClient } from "./supabase/client";
+export { createSupabaseServerClient } from "./supabase/server";

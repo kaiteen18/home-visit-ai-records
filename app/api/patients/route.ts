@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrganizationId } from "@/lib/get-organization-id";
-import { getSupabase } from "@/lib/supabase";
+import { requireAuth } from "@/lib/get-organization-id";
 
 const PATIENTS_LIST_SELECT = "id, patient_name" as const;
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    const organizationId = await getOrganizationId(request);
-
-    if (!organizationId) {
-      return NextResponse.json(
-        { error: "組織が特定できません。ログインしてください。" },
-        { status: 401 }
-      );
+    const auth = await requireAuth();
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const supabase = getSupabase();
+    const { supabase, organizationId } = auth;
 
     const { data, error } = await supabase
       .from("patients")

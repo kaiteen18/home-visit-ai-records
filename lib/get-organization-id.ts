@@ -1,18 +1,66 @@
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+export type AuthResult =
+  | { ok: true; supabase: SupabaseClient; user: User; organizationId: string }
+  | { ok: false; status: 401; error: string }
+  | { ok: false; status: 403; error: string };
+
 /**
- * ログインユーザーに紐づく organization_id を取得する。
- *
- * 【現在】仮で "1" を返す。
- * 【将来】Supabase Auth のセッション（cookies）から user を取得し、
- * user.user_metadata.organization_id または users テーブルから取得する。
- *
- * @example 将来の実装イメージ
- * const supabase = createServerClient(cookies);
- * const { data: { user } } = await supabase.auth.getUser();
- * return user?.user_metadata?.organization_id ?? null;
+ * セッション＋ organization_members から組織コンテキストを解決する。
+ * API / Server Component から1回呼び、supabase クライアントを使い回すこと。
  */
-export async function getOrganizationId(
-  _request?: Request
-): Promise<string | null> {
-  // 仮実装: 固定値
-  return "1";
+export async function requireAuth(): Promise<AuthResult> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return {
+      ok: false,
+      status: 401,
+      error: "未ログインです。",
+    };
+  }
+
+  const { data: row, error: memError } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (memError) {
+    console.error("[requireAuth] organization_members select error:", memError);
+    return {
+      ok: false,
+      status: 403,
+      error: `組織情報の取得に失敗しました: ${memError.message}`,
+    };
+  }
+
+  const raw = row?.organization_id;
+  if (raw === null || raw === undefined || raw === "") {
+    return {
+      ok: false,
+      status: 403,
+      error:
+        "組織が特定できません。organization_members にユーザーを登録してください。",
+    };
+  }
+
+  const organizationId =
+    typeof raw === "string" ? raw : String(raw);
+
+  return { ok: true, supabase, user, organizationId };
+}
+
+/**
+ * organization_members から organization_id のみ必要な場合（後方互換）。
+ * 可能なら requireAuth() を1回だけ使う方が効率的。
+ */
+export async function getOrganizationId(): Promise<string | null> {
+  const r = await requireAuth();
+  return r.ok ? r.organizationId : null;
 }

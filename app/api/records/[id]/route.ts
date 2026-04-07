@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isUuidString } from "@/lib/is-uuid";
-import { getSupabase } from "@/lib/supabase";
+import { requireAuth } from "@/lib/get-organization-id";
 import { PROMPT_TYPES, type PromptType } from "@/lib/prompts";
 
 function toText(value: unknown, fallback = ""): string {
@@ -37,7 +37,12 @@ export async function GET(
       );
     }
 
-    const supabase = getSupabase();
+    const auth = await requireAuth();
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const { supabase, organizationId } = auth;
 
     const { data, error } = await supabase
       .from("records")
@@ -45,6 +50,7 @@ export async function GET(
         "id, patient_id, organization_id, input_text, previous_record, ai_output, final_text, prompt_type, created_at, patients(patient_name)"
       )
       .eq("id", id)
+      .eq("organization_id", organizationId)
       .maybeSingle();
 
     if (error) {
@@ -133,7 +139,12 @@ export async function PATCH(
       );
     }
 
-    const supabase = getSupabase();
+    const auth = await requireAuth();
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const { supabase, organizationId } = auth;
 
     const updatePayload: Record<string, string> = {
       updated_at: new Date().toISOString(),
@@ -198,6 +209,7 @@ export async function PATCH(
       .from("records")
       .update(updatePayload)
       .eq("id", id)
+      .eq("organization_id", organizationId)
       .select("id")
       .maybeSingle();
 

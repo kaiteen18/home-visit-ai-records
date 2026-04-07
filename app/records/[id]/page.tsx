@@ -1,18 +1,22 @@
-import { notFound } from "next/navigation";
 import Link from "next/link";
-import { isUuidString } from "@/lib/is-uuid";
-import { getSupabase } from "@/lib/supabase";
+import { notFound, redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { RecordDetailForm } from "@/components/record-detail-form";
+import { requireAuth } from "@/lib/get-organization-id";
 import type { RecordDetail } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-async function getRecord(id: string): Promise<RecordDetail | null> {
-  const supabase = getSupabase();
+async function getRecord(
+  supabase: SupabaseClient,
+  id: string,
+  organizationId: string
+): Promise<RecordDetail | null> {
   const { data, error } = await supabase
     .from("records")
     .select("*")
     .eq("id", id)
+    .eq("organization_id", organizationId)
     .single();
 
   if (error) {
@@ -52,12 +56,14 @@ export default async function RecordDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  if (!isUuidString(id)) {
-    notFound();
-  }
-  const record = await getRecord(id);
 
-  if (!record) {
+  const auth = await requireAuth();
+  if (!auth.ok) {
+    if (auth.status === 401) {
+      redirect(
+        "/login?next=" + encodeURIComponent(`/records/${id}`)
+      );
+    }
     return (
       <main className="mx-auto max-w-2xl px-4 py-8">
         <div className="mb-6">
@@ -68,16 +74,17 @@ export default async function RecordDetailPage({
             ← 一覧へ戻る
           </Link>
         </div>
-        <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center">
-          <p className="font-medium text-red-700">
-            指定された記録が見つかりません。
-          </p>
-          <p className="mt-2 text-sm text-red-600">
-            削除されたか、IDが正しくない可能性があります。
-          </p>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center">
+          <p className="font-medium text-amber-900">{auth.error}</p>
         </div>
       </main>
     );
+  }
+
+  const record = await getRecord(auth.supabase, id, auth.organizationId);
+
+  if (!record) {
+    notFound();
   }
 
   return (

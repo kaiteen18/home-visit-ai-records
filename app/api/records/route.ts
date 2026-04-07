@@ -1,19 +1,24 @@
 import { NextResponse } from "next/server";
 import { isUuidString } from "@/lib/is-uuid";
 import { recordIdToString } from "@/lib/record-list";
-import { getSupabase } from "@/lib/supabase";
+import { requireAuth } from "@/lib/get-organization-id";
 import { PROMPT_TYPES, type PromptType } from "@/lib/prompts";
 
 export async function GET() {
   try {
-    const supabase = getSupabase();
+    const auth = await requireAuth();
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const { supabase, organizationId } = auth;
 
     const { data, error } = await supabase
       .from("records")
       .select(
         "id, patient_id, prompt_type, created_at, final_text, ai_output, patients(patient_name)"
       )
-      .or("organization_id.eq.1,organization_id.is.null")
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -98,6 +103,13 @@ function mapInsertErrorToJa(error: {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const { supabase, organizationId } = auth;
+
     const body = await request.json().catch(() => null);
     console.log("[api/records POST] raw body:", JSON.stringify(body, null, 2));
 
@@ -107,12 +119,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    const orgRaw = body.organization_id;
-    const organizationId =
-      typeof orgRaw === "string" && orgRaw.trim() !== ""
-        ? orgRaw.trim()
-        : null;
 
     const patientIdRaw = body.patient_id;
     const patientId =
@@ -159,8 +165,8 @@ export async function POST(request: Request) {
       final_text: string;
       previous_record: string;
       prompt_type: string;
-      patient_id?: string;
-      organization_id?: string;
+      patient_id: string;
+      organization_id: string;
     } = {
       input_text: inputText,
       ai_output: aiOutput,
@@ -168,20 +174,16 @@ export async function POST(request: Request) {
       previous_record: previousRecord,
       prompt_type: promptType,
       patient_id: patientId,
+      organization_id: organizationId,
     };
-    if (organizationId) {
-      insertPayload.organization_id = organizationId;
-    }
 
     console.log("[api/records POST] insert payload (DB columns only):", {
       keys: Object.keys(insertPayload),
       input_text_length: insertPayload.input_text.length,
       ai_output_length: insertPayload.ai_output.length,
       final_text_length: insertPayload.final_text.length,
-      has_organization_id: "organization_id" in insertPayload,
+      organization_id: organizationId,
     });
-
-    const supabase = getSupabase();
 
     const { data, error } = await supabase
       .from("records")
