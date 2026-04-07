@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { RecordsTable } from "@/components/records-table";
+import { normalizeRecordListResponse } from "@/lib/record-list";
 import type { RecordListApiItem } from "@/types";
 
 type State =
@@ -34,7 +35,7 @@ export function RecordsPageClient() {
           throw new Error(errMsg);
         }
     
-        const records = Array.isArray(data) ? data : [];
+        const records = normalizeRecordListResponse(data);
         setState({ status: "ok", records });
       } catch (err) {
         const msg =

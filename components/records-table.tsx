@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { recordIdToString } from "@/lib/record-list";
 import type { RecordListApiItem } from "@/types";
 
 function formatDateTime(iso: string | null | undefined): string {
@@ -61,9 +62,12 @@ export function RecordsTable({ records }: Props) {
           </tr>
         </thead>
         <tbody>
-          {records.map((record) => (
+          {records.map((record) => {
+            const rowId = recordIdToString(record.id);
+            const idInPath = encodeURIComponent(rowId);
+            return (
             <tr
-              key={record.id}
+              key={rowId}
               className="border-b border-line transition hover:bg-accentSoft/50 last:border-b-0"
             >
               <td className="px-4 py-3 text-sm text-ink">
@@ -81,13 +85,13 @@ export function RecordsTable({ records }: Props) {
               <td className="px-4 py-3">
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
                   <Link
-                    href={`/records/${record.id}/edit`}
+                    href={`/records/${idInPath}/edit`}
                     className="text-sm text-accent underline hover:text-teal-700"
                   >
                     編集
                   </Link>
                   <Link
-                    href={`/records/${record.id}`}
+                    href={`/records/${idInPath}`}
                     className="text-sm text-slate-600 underline hover:text-ink"
                   >
                     詳細
@@ -95,7 +99,8 @@ export function RecordsTable({ records }: Props) {
                 </div>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

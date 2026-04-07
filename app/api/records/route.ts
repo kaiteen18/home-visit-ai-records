@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isUuidString } from "@/lib/is-uuid";
+import { recordIdToString } from "@/lib/record-list";
 import { getSupabase } from "@/lib/supabase";
 import { PROMPT_TYPES, type PromptType } from "@/lib/prompts";
 
@@ -29,7 +30,7 @@ export async function GET() {
     }
 
     const rows = (data ?? []) as Array<{
-      id: string;
+      id: string | number;
       patient_id: string | null;
       prompt_type: string | null;
       created_at: string;
@@ -44,7 +45,7 @@ export async function GET() {
         ? patients[0]?.patient_name
         : patients?.patient_name;
       return {
-        id: r.id,
+        id: recordIdToString(r.id),
         patient_id: r.patient_id,
         patient_name: patientName ?? null,
         prompt_type: r.prompt_type ?? "dar",
@@ -201,8 +202,9 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log("[api/records POST] insert OK, id:", data?.id);
-    return NextResponse.json({ id: data.id, success: true }, { status: 200 });
+    const insertedId = data?.id != null ? recordIdToString(data.id) : "";
+    console.log("[api/records POST] insert OK, id:", insertedId);
+    return NextResponse.json({ id: insertedId, success: true }, { status: 200 });
   } catch (err) {
     console.error("[api/records POST] unexpected:", err);
     return NextResponse.json(
