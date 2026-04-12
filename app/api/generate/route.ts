@@ -1,5 +1,6 @@
 import { AuthenticationError } from "openai";
 import { NextResponse } from "next/server";
+import { getOrganizationId } from "@/lib/get-organization-id";
 import { generateDraft } from "@/lib/openai";
 import { isUuidString } from "@/lib/is-uuid";
 import {
@@ -7,6 +8,9 @@ import {
   resolveGenerationMode,
   type PromptType,
 } from "@/lib/prompts";
+
+const UNAUTHORIZED_MESSAGE =
+  "認証に失敗したか、組織に所属していません。ログインし直してください。";
 
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
@@ -20,6 +24,15 @@ export async function POST(request: Request) {
   }
 
   try {
+    const organizationId = await getOrganizationId();
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: UNAUTHORIZED_MESSAGE },
+        { status: 401 }
+      );
+    }
+
+    // 将来: organizationId に基づく利用制限・課金・レート制御など
 
     const patientIdRaw = body.patient_id;
     const patientId =
@@ -65,7 +78,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ai_output: generatedText });
   } catch (err: unknown) {
-    console.error("Generate API error:", err);
+    console.error("[api/generate] POST error:", err);
 
     const message =
       err instanceof Error ? err.message : "AI生成中にエラーが発生しました。";
