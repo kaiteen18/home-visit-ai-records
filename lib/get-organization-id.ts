@@ -6,8 +6,141 @@ export type AuthResult =
   | { ok: false; status: 401; error: string }
   | { ok: false; status: 403; error: string };
 
+const DEFAULT_ORG_NAME = "デフォルト組織";
+
+function toOrganizationIdString(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  return typeof value === "string" ? value : String(value);
+}
+
 /**
- * セッション＋ organization_members から組織コンテキストを解決する。
+ * organization_members を解決する。無ければ organizations を1件作成し、
+ * organization_members に user_id と紐づけて挿入する（1ユーザー1組織）。
+ * 競合時は UNIQUE(user_id) を検知して再取得する。
+ */
+async function resolveOrganizationIdWithAutoProvision(
+  supabase: SupabaseClient,
+  user: User
+): Promise<
+  | { ok: true; organizationId: string }
+  | { ok: false; status: 403; error: string }
+> {
+  const { data: row, error: selectError } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (selectError) {
+    console.error(
+      "[organization] organization_members select error:",
+      selectError.message,
+      selectError.code,
+      selectError.details,
+      selectError.hint
+    );
+    return {
+      ok: false,
+      status: 403,
+      error: `組織情報の取得に失敗しました: ${selectError.message}`,
+    };
+  }
+
+  const existingId = toOrganizationIdString(row?.organization_id);
+  if (existingId) {
+    return { ok: true, organizationId: existingId };
+  }
+
+  const { data: orgRow, error: orgError } = await supabase
+    .from("organizations")
+    .insert({ name: DEFAULT_ORG_NAME })
+    .select("id")
+    .single();
+
+  if (orgError) {
+    console.error(
+      "[organization] organizations insert error:",
+      orgError.message,
+      orgError.code,
+      orgError.details,
+      orgError.hint
+    );
+    return {
+      ok: false,
+      status: 403,
+      error: `組織の作成に失敗しました: ${orgError.message}`,
+    };
+  }
+
+  const newOrgId = toOrganizationIdString(orgRow?.id);
+  if (!newOrgId) {
+    console.error("[organization] organizations insert returned no id");
+    return {
+      ok: false,
+      status: 403,
+      error: "組織の作成に失敗しました（ID が取得できませんでした）。",
+    };
+  }
+
+  const { error: memberError } = await supabase.from("organization_members").insert({
+    user_id: user.id,
+    organization_id: newOrgId,
+    role: "member",
+  });
+
+  if (memberError) {
+    if (memberError.code === "23505") {
+      const { data: retryRow, error: retryErr } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (retryErr) {
+        console.error(
+          "[organization] organization_members re-fetch after conflict:",
+          retryErr.message,
+          retryErr.code,
+          retryErr.details,
+          retryErr.hint
+        );
+        return {
+          ok: false,
+          status: 403,
+          error: `組織の紐付けに失敗しました: ${retryErr.message}`,
+        };
+      }
+
+      const retryId = toOrganizationIdString(retryRow?.organization_id);
+      if (!retryId) {
+        return {
+          ok: false,
+          status: 403,
+          error: "組織の紐付けを確認できませんでした。",
+        };
+      }
+      return { ok: true, organizationId: retryId };
+    }
+
+    console.error(
+      "[organization] organization_members insert error:",
+      memberError.message,
+      memberError.code,
+      memberError.details,
+      memberError.hint
+    );
+    return {
+      ok: false,
+      status: 403,
+      error: `組織メンバーの登録に失敗しました: ${memberError.message}`,
+    };
+  }
+
+  return { ok: true, organizationId: newOrgId };
+}
+
+/**
+ * セッション＋ organization_members（必要なら自動作成）から組織コンテキストを解決する。
  * API / Server Component から1回呼び、supabase クライアントを使い回すこと。
  */
 export async function requireAuth(): Promise<AuthResult> {
@@ -25,39 +158,25 @@ export async function requireAuth(): Promise<AuthResult> {
     };
   }
 
-  const { data: row, error: memError } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (memError) {
-    console.error("[requireAuth] organization_members select error:", memError);
+  const resolved = await resolveOrganizationIdWithAutoProvision(supabase, user);
+  if (!resolved.ok) {
     return {
       ok: false,
-      status: 403,
-      error: `組織情報の取得に失敗しました: ${memError.message}`,
+      status: resolved.status,
+      error: resolved.error,
     };
   }
 
-  const raw = row?.organization_id;
-  if (raw === null || raw === undefined || raw === "") {
-    return {
-      ok: false,
-      status: 403,
-      error:
-        "組織が特定できません。organization_members にユーザーを登録してください。",
-    };
-  }
-
-  const organizationId =
-    typeof raw === "string" ? raw : String(raw);
-
-  return { ok: true, supabase, user, organizationId };
+  return {
+    ok: true,
+    supabase,
+    user,
+    organizationId: resolved.organizationId,
+  };
 }
 
 /**
- * organization_members から organization_id のみ必要な場合（後方互換）。
+ * organization_id のみ必要な場合（後方互換）。
  * 可能なら requireAuth() を1回だけ使う方が効率的。
  */
 export async function getOrganizationId(): Promise<string | null> {

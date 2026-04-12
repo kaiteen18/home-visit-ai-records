@@ -46,7 +46,7 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  if (pathname === "/login" && user) {
+  if ((pathname === "/login" || pathname === "/signup") && user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/records";
     redirectUrl.search = "";
@@ -84,5 +84,6 @@ export const config = {
     "/api/patients/:path*",
     "/api/generate",
     "/login",
+    "/signup",
   ],
 };

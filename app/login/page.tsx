@@ -84,7 +84,16 @@ export default function LoginPage() {
       <Suspense fallback={<p className="text-center text-sm text-slate-500">読み込み中...</p>}>
         <LoginForm />
       </Suspense>
-      <p className="mt-8 text-center text-sm">
+      <p className="mt-6 text-center text-sm text-slate-600">
+        アカウントをお持ちでない方は{" "}
+        <Link
+          href="/signup"
+          className="font-medium text-accent underline hover:text-teal-700"
+        >
+          新規登録
+        </Link>
+      </p>
+      <p className="mt-4 text-center text-sm">
         <Link href="/" className="text-accent underline hover:text-teal-700">
           トップへ戻る
         </Link>
