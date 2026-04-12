@@ -1,17 +1,24 @@
 import { NextResponse } from "next/server";
 import { isUuidString } from "@/lib/is-uuid";
+import { getOrganizationId } from "@/lib/get-organization-id";
 import { recordIdToString } from "@/lib/record-list";
-import { requireAuth } from "@/lib/get-organization-id";
+import { getSupabase } from "@/lib/supabase";
 import { PROMPT_TYPES, type PromptType } from "@/lib/prompts";
+
+const UNAUTHORIZED_MESSAGE =
+  "認証に失敗したか、組織に所属していません。ログインし直してください。";
 
 export async function GET() {
   try {
-    const auth = await requireAuth();
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const organizationId = await getOrganizationId();
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: UNAUTHORIZED_MESSAGE },
+        { status: 401 }
+      );
     }
 
-    const { supabase, organizationId } = auth;
+    const supabase = getSupabase();
 
     const { data, error } = await supabase
       .from("records")
@@ -103,12 +110,15 @@ function mapInsertErrorToJa(error: {
 
 export async function POST(request: Request) {
   try {
-    const auth = await requireAuth();
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const organizationId = await getOrganizationId();
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: UNAUTHORIZED_MESSAGE },
+        { status: 401 }
+      );
     }
 
-    const { supabase, organizationId } = auth;
+    const supabase = getSupabase();
 
     const body = await request.json().catch(() => null);
     console.log("[api/records POST] raw body:", JSON.stringify(body, null, 2));

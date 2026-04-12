@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { isUuidString } from "@/lib/is-uuid";
-import { requireAuth } from "@/lib/get-organization-id";
+import { getOrganizationId } from "@/lib/get-organization-id";
+import { getSupabase } from "@/lib/supabase";
 import { PROMPT_TYPES, type PromptType } from "@/lib/prompts";
+
+const UNAUTHORIZED_MESSAGE =
+  "認証に失敗したか、組織に所属していません。ログインし直してください。";
 
 function toText(value: unknown, fallback = ""): string {
   if (value === undefined || value === null) return fallback;
@@ -37,12 +41,15 @@ export async function GET(
       );
     }
 
-    const auth = await requireAuth();
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const organizationId = await getOrganizationId();
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: UNAUTHORIZED_MESSAGE },
+        { status: 401 }
+      );
     }
 
-    const { supabase, organizationId } = auth;
+    const supabase = getSupabase();
 
     const { data, error } = await supabase
       .from("records")
@@ -58,6 +65,7 @@ export async function GET(
         message: error.message,
         code: error.code,
         details: error.details,
+        hint: error.hint,
         id,
       });
       return NextResponse.json(
@@ -139,12 +147,15 @@ export async function PATCH(
       );
     }
 
-    const auth = await requireAuth();
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const organizationId = await getOrganizationId();
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: UNAUTHORIZED_MESSAGE },
+        { status: 401 }
+      );
     }
 
-    const { supabase, organizationId } = auth;
+    const supabase = getSupabase();
 
     const updatePayload: Record<string, string> = {
       updated_at: new Date().toISOString(),
