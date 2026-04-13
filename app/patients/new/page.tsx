@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Input } from "@/components/ui";
 
@@ -73,16 +72,18 @@ export default function NewPatientPage() {
             {error}
           </p>
         ) : null}
-        <div className="flex flex-wrap gap-3 pt-2">
+        <div className="flex flex-wrap items-center gap-3 pt-2">
           <Button type="submit" disabled={loading}>
             {loading ? "登録中…" : "登録"}
           </Button>
-          <Link
-            href="/records/new"
-            className="inline-flex items-center text-sm text-accent underline hover:text-teal-700"
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={loading}
+            onClick={() => router.push("/records/new")}
           >
-            キャンセル
-          </Link>
+            戻る
+          </Button>
         </div>
       </form>
     </main>
