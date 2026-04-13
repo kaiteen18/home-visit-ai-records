@@ -55,6 +55,7 @@ export async function middleware(request: NextRequest) {
 
   const isProtected =
     pathname.startsWith("/records") ||
+    pathname.startsWith("/patients") ||
     pathname.startsWith("/api/records") ||
     pathname.startsWith("/api/patients") ||
     pathname === "/api/generate";
@@ -78,6 +79,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/records/:path*",
+    "/patients/:path*",
     "/api/records",
     "/api/records/:path*",
     "/api/patients",

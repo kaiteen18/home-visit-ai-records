@@ -311,6 +311,14 @@ export function RecordForm() {
                 {patientsError}
               </p>
             ) : null}
+            <p className="text-sm text-slate-600">
+              <Link
+                href="/patients/new"
+                className="text-accent underline hover:text-teal-700"
+              >
+                患者を追加
+              </Link>
+            </p>
           </div>
         </section>
 
