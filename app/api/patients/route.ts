@@ -6,14 +6,39 @@ const PATIENTS_LIST_SELECT = "id, patient_name" as const;
 const UNAUTHORIZED_MESSAGE =
   "認証に失敗したか、組織に所属していません。ログインし直してください。";
 
+function authFailureResponse(
+  status: 401 | 403,
+  error: string
+): NextResponse<{ error: string }> {
+  if (status === 401) {
+    return NextResponse.json({ error }, { status: 401 });
+  }
+  return NextResponse.json({ error: UNAUTHORIZED_MESSAGE }, { status: 401 });
+}
+
 export async function GET(_request: NextRequest) {
   try {
-    const auth = await requireAuth();
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const organizationId = await getOrganizationId();
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: UNAUTHORIZED_MESSAGE },
+        { status: 401 }
+      );
     }
 
-    const { supabase, organizationId } = auth;
+    const auth = await requireAuth();
+    if (!auth.ok) {
+      return authFailureResponse(auth.status, auth.error);
+    }
+
+    if (auth.organizationId !== organizationId) {
+      return NextResponse.json(
+        { error: UNAUTHORIZED_MESSAGE },
+        { status: 401 }
+      );
+    }
+
+    const { supabase } = auth;
 
     const { data, error } = await supabase
       .from("patients")
@@ -65,10 +90,7 @@ export async function POST(request: Request) {
 
     const auth = await requireAuth();
     if (!auth.ok) {
-      return NextResponse.json(
-        { error: auth.error },
-        { status: auth.status }
-      );
+      return authFailureResponse(auth.status, auth.error);
     }
 
     if (auth.organizationId !== organizationId) {
@@ -88,7 +110,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const nameRaw = body.patient_name;
+    // organization_id は body から受け付けない（サーバー側の organizationId のみ使用）
+    const nameRaw = (body as Record<string, unknown>).patient_name;
     const patientName =
       typeof nameRaw === "string" ? nameRaw.trim() : "";
 
