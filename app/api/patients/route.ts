@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganizationId, requireAuth } from "@/lib/get-organization-id";
-import { getSupabase } from "@/lib/supabase";
 
 const PATIENTS_LIST_SELECT = "id, patient_name" as const;
 
@@ -64,6 +63,23 @@ export async function POST(request: Request) {
       );
     }
 
+    const auth = await requireAuth();
+    if (!auth.ok) {
+      return NextResponse.json(
+        { error: auth.error },
+        { status: auth.status }
+      );
+    }
+
+    if (auth.organizationId !== organizationId) {
+      return NextResponse.json(
+        { error: UNAUTHORIZED_MESSAGE },
+        { status: 401 }
+      );
+    }
+
+    const { supabase } = auth;
+
     const body = await request.json().catch(() => null);
     if (body === null || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json(
@@ -82,8 +98,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    const supabase = getSupabase();
 
     const { data, error } = await supabase
       .from("patients")
