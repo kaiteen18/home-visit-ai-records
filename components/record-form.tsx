@@ -275,6 +275,12 @@ export function RecordForm() {
         >
           新規作成
         </Link>
+        <Link
+          href="/admin/organization-members"
+          className="text-accent underline hover:text-teal-700"
+        >
+          {"\u7d44\u7e54\u30e1\u30f3\u30d0\u30fc\u7ba1\u7406"}
+        </Link>
       </div>
 
       <div className="space-y-8">
