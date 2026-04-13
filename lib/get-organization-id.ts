@@ -29,6 +29,7 @@ async function resolveOrganizationIdWithAutoProvision(
     .from("organization_members")
     .select("organization_id")
     .eq("user_id", user.id)
+    .limit(1)
     .maybeSingle();
 
   if (selectError) {
@@ -82,6 +83,20 @@ async function resolveOrganizationIdWithAutoProvision(
     };
   }
 
+  const { data: afterOrgRace, error: afterOrgRaceErr } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!afterOrgRaceErr) {
+    const racedId = toOrganizationIdString(afterOrgRace?.organization_id);
+    if (racedId) {
+      return { ok: true, organizationId: racedId };
+    }
+  }
+
   const { error: memberError } = await supabase.from("organization_members").insert({
     user_id: user.id,
     organization_id: newOrgId,
@@ -89,11 +104,13 @@ async function resolveOrganizationIdWithAutoProvision(
   });
 
   if (memberError) {
-    if (memberError.code === "23505") {
+    const isUniqueViolation = String(memberError.code) === "23505";
+    if (isUniqueViolation) {
       const { data: retryRow, error: retryErr } = await supabase
         .from("organization_members")
         .select("organization_id")
         .eq("user_id", user.id)
+        .limit(1)
         .single();
 
       if (retryErr) {

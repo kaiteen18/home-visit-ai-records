@@ -154,6 +154,36 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: patientRow, error: patientErr } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("id", patientId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (patientErr) {
+      console.error("[api/records POST] patient org check error:", {
+        message: patientErr.message,
+        code: patientErr.code,
+        details: patientErr.details,
+        hint: patientErr.hint,
+      });
+      return NextResponse.json(
+        { error: `患者の確認に失敗しました: ${patientErr.message}` },
+        { status: 500 }
+      );
+    }
+
+    if (!patientRow) {
+      return NextResponse.json(
+        {
+          error:
+            "患者が見つかりません。同じ組織の患者を選択してください。",
+        },
+        { status: 404 }
+      );
+    }
+
     if (!finalText) {
       return NextResponse.json(
         { error: "確定テキスト（final_text）を入力してください。" },

@@ -213,6 +213,37 @@ export async function PATCH(
           { status: 400 }
         );
       }
+
+      const { data: patientRow, error: patientErr } = await supabase
+        .from("patients")
+        .select("id")
+        .eq("id", trimmed)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+
+      if (patientErr) {
+        console.error("[api/records/[id] PATCH] patient org check error:", {
+          message: patientErr.message,
+          code: patientErr.code,
+          details: patientErr.details,
+          hint: patientErr.hint,
+        });
+        return NextResponse.json(
+          { error: `患者の確認に失敗しました: ${patientErr.message}` },
+          { status: 500 }
+        );
+      }
+
+      if (!patientRow) {
+        return NextResponse.json(
+          {
+            error:
+            "患者が見つかりません。同じ組織の患者を選択してください。",
+          },
+          { status: 404 }
+        );
+      }
+
       updatePayload.patient_id = trimmed;
     }
 
