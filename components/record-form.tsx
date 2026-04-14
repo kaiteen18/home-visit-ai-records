@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Textarea } from "@/components/ui";
-import { PatientPicker } from "@/components/patient-picker";
 import {
   VoiceMemoControls,
   VOICE_BROWSER_SPEECH_SUCCESS_MESSAGE,
@@ -17,7 +16,31 @@ import type { GenerationMode, PromptType } from "@/lib/prompts";
 const REVISE_PLACEHOLDER =
   "例：「Focusを2つにまとめる」「生活情報だけ短く」「SOAPのAをもう少し具体的に」";
 
+const RECENT_PATIENT_STORAGE_KEY = "home-visit-ai-records:recent-patient-ids";
+const MAX_RECENT_PATIENTS = 5;
+
 type Patient = { id: string; patient_name: string };
+
+function readRecentPatientIdsFromStorage(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(RECENT_PATIENT_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === "string" && x.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentPatientIdsToStorage(ids: string[]): void {
+  try {
+    localStorage.setItem(RECENT_PATIENT_STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    /* ignore */
+  }
+}
 
 export type RecordFormProps = {
   /**
@@ -32,6 +55,9 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
   const [patientsError, setPatientsError] = useState<string | null>(null);
 
   const [patientId, setPatientId] = useState<string>("");
+  const [patientSearch, setPatientSearch] = useState("");
+  const [recentPatientIds, setRecentPatientIds] = useState<string[]>([]);
+
   const [previousRecord, setPreviousRecord] = useState("");
   const [inputText, setInputText] = useState("");
   const [promptType, setPromptType] = useState<PromptType>("dar");
@@ -52,6 +78,41 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
   const busy = isGenerating || isRevising || isSaving || voiceBusy;
   const hasAiOutput = Boolean(aiOutput.trim());
   const hasPatient = Boolean(patientId.trim());
+
+  useEffect(() => {
+    setRecentPatientIds(readRecentPatientIdsFromStorage());
+  }, []);
+
+  const selectPatient = useCallback((id: string) => {
+    setPatientId(id);
+    setRecentPatientIds((prev) => {
+      const next = [id, ...prev.filter((x) => x !== id)].slice(0, MAX_RECENT_PATIENTS);
+      writeRecentPatientIdsToStorage(next);
+      return next;
+    });
+  }, []);
+
+  const recentPatientsRows = useMemo(() => {
+    const byId = new Map(patients.map((p) => [p.id, p] as const));
+    return recentPatientIds
+      .map((id) => byId.get(id))
+      .filter((p): p is Patient => p != null)
+      .slice(0, MAX_RECENT_PATIENTS);
+  }, [patients, recentPatientIds]);
+
+  const filteredPatientsList = useMemo(() => {
+    const q = patientSearch.trim().toLowerCase();
+    const recentSet = new Set(recentPatientIds);
+    let list: Patient[];
+    if (q) {
+      list = patients.filter((p) => p.patient_name.toLowerCase().includes(q));
+    } else {
+      list = patients.filter((p) => !recentSet.has(p.id));
+    }
+    return [...list].sort((a, b) =>
+      a.patient_name.localeCompare(b.patient_name, "ja")
+    );
+  }, [patients, patientSearch, recentPatientIds]);
 
   useEffect(() => {
     async function fetchPatients() {
@@ -107,7 +168,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
       setPreviousRecord("");
       return;
     }
-  
+
     async function fetchLatestRecord() {
       try {
         const result = await fetchApi<{ previous_record?: string }>(
@@ -126,7 +187,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
         console.error("[RecordForm] /api/records/latest fetch error:", err);
       }
     }
-  
+
     fetchLatestRecord();
   }, [patientId]);
 
@@ -286,6 +347,9 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
     }
   }
 
+  const showRecentSection =
+    !patientsLoading && recentPatientsRows.length > 0 && patientSearch.trim() === "";
+
   return (
     <>
       <div className="mb-6 flex flex-wrap gap-4 text-sm">
@@ -305,25 +369,115 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
           href="/admin/organization-members"
           className="text-accent underline hover:text-teal-700"
         >
-          {"\u7d44\u7e54\u30e1\u30f3\u30d0\u30fc\u7ba1\u7406"}
+          組��メン��ー管理
         </Link>
       </div>
 
       <div className="space-y-8">
-        {/* 患者選択 */}
+        {/* 患者選択（検索 + 最近 + 一覧） */}
         <section className="rounded-xl border border-line bg-white p-6 shadow-panel">
           <h2 className="mb-4 text-base font-semibold text-ink">
             患者
           </h2>
-          <div className="space-y-2">
-            <PatientPicker
-              patients={patients}
-              patientId={patientId}
-              onPatientIdChange={setPatientId}
-              disabled={busy}
-              loading={patientsLoading}
-              error={patientsError}
-            />
+          <div className="space-y-4">
+            <div>
+              <label
+                htmlFor="patient-search-input"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                対象患者（必��）
+              </label>
+              <input
+                id="patient-search-input"
+                type="search"
+                inputMode="search"
+                enterKeyHint="search"
+                autoComplete="off"
+                placeholder={
+                  patientsLoading ? "読み込み中..." : "�り込み"
+                }
+                value={patientSearch}
+                onChange={(e) => setPatientSearch(e.target.value)}
+                disabled={busy || patientsLoading}
+                className="w-full min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-ink placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+              />
+            </div>
+
+            {showRecentSection ? (
+              <div>
+                <p className="mb-2 text-xs font-medium text-slate-500">
+                  最近選んだ患者
+                </p>
+                <ul className="flex flex-col gap-1 sm:gap-2">
+                  {recentPatientsRows.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        disabled={busy || patientsLoading}
+                        onClick={() => selectPatient(p.id)}
+                        className={`flex w-full min-h-12 items-center rounded-lg border px-3 py-3 text-left text-base transition sm:min-h-11 sm:py-2 sm:text-sm ${
+                          patientId === p.id
+                            ? "border-accent bg-accent/15 font-medium text-ink"
+                            : "border-line bg-slate-50 text-ink hover:bg-slate-100 active:bg-slate-200"
+                        } disabled:cursor-not-allowed disabled:opacity-50`}
+                      >
+                        {p.patient_name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            <div>
+              <p className="mb-2 text-xs font-medium text-slate-500">
+                {patientSearch.trim() ? "検索結果" : "患者一覧"}
+              </p>
+              <ul
+                className="max-h-52 overflow-y-auto overscroll-contain rounded-lg border border-line bg-white sm:max-h-60"
+                role="listbox"
+                aria-label="患者を選択"
+              >
+                {patientsLoading ? (
+                  <li className="px-3 py-4 text-center text-sm text-slate-500">
+                    読み込み中...
+                  </li>
+                ) : patients.length === 0 ? (
+                  <li className="px-3 py-4 text-center text-sm text-slate-500">
+                    患者が登録されていません
+                  </li>
+                ) : filteredPatientsList.length === 0 ? (
+                  <li className="px-3 py-4 text-center text-sm text-slate-500">
+                    ��当する患者がありません
+                  </li>
+                ) : (
+                  filteredPatientsList.map((p) => (
+                    <li key={p.id} className="border-b border-line last:border-b-0">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={patientId === p.id}
+                        disabled={busy || patientsLoading}
+                        onClick={() => selectPatient(p.id)}
+                        className={`w-full min-h-12 px-3 py-3 text-left text-base transition sm:min-h-11 sm:py-2 sm:text-sm ${
+                          patientId === p.id
+                            ? "bg-accent/15 font-medium text-ink"
+                            : "text-ink hover:bg-slate-50 active:bg-slate-100"
+                        } disabled:cursor-not-allowed disabled:opacity-50`}
+                      >
+                        {p.patient_name}
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+
+            {patientsError ? (
+              <p className="text-sm text-red-600" role="alert">
+                {patientsError}
+              </p>
+            ) : null}
 
             <p className="text-sm text-slate-600">
               <Link
@@ -344,7 +498,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
           <form onSubmit={handleGenerate} className="space-y-5">
             <Textarea
               label="前回記録（任意）"
-              placeholder="前回の訪問記録や要点を貼り付け"
+              placeholder="前回の��問記録や��り付け"
               value={previousRecord}
               onChange={(e) => setPreviousRecord(e.target.value)}
               rows={5}
@@ -353,8 +507,8 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
             />
 
             <Textarea
-              label="今回メモ（必須・AI生成に使用）"
-              placeholder="今回の観察・ケア内容などを入力"
+              label="今回メモ（必��・AI生成に使用）"
+              placeholder="�察・ケア内容などを入力"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               required
@@ -456,7 +610,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
                 </button>
               </div>
               <p className="text-xs text-slate-500">
-                通常は日々の記録向け。監査は第三者確認・指摘を意識した表現を優先します。
+                通常は日々の記録向け。監査は第三者確認・指摘を意��した表現を優先します。
               </p>
             </div>
 
@@ -477,7 +631,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
               2. AI出力（ai_output）
             </h2>
             <Textarea
-              label="生成結果（参照用・読み取り専用）"
+              label="生成結果（参照用・読み取り��用）"
               value={aiOutput}
               readOnly
               rows={12}
