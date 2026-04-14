@@ -237,6 +237,11 @@ export function resolveGenerationMode(mode: unknown): GenerationMode {
     : "normal";
 }
 
+export type GetPromptOptions = {
+  customDar?: string | null;
+  customSoap?: string | null;
+};
+
 /**
  * メインプロンプト生成
  */
@@ -244,10 +249,17 @@ export function getPrompt(
   promptType: PromptType,
   previousRecord: string,
   currentInput: string,
-  mode: GenerationMode = "normal"
+  mode: GenerationMode = "normal",
+  options?: GetPromptOptions
 ): string {
-  const instruction =
+  const defaultInstruction =
     promptType === "soap" ? SOAP_INSTRUCTION : DAR_INSTRUCTION;
+  const customRaw =
+    promptType === "soap" ? options?.customSoap : options?.customDar;
+  const custom =
+    typeof customRaw === "string" ? customRaw.trim() : "";
+  const instruction =
+    custom.length > 0 ? custom : defaultInstruction;
 
   const input = buildInputSection(previousRecord, currentInput);
 

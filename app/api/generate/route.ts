@@ -1,6 +1,6 @@
 import { AuthenticationError } from "openai";
 import { NextResponse } from "next/server";
-import { getOrganizationId } from "@/lib/get-organization-id";
+import { getOrganizationId, requireAuth } from "@/lib/get-organization-id";
 import { generateDraft } from "@/lib/openai";
 import { isUuidString } from "@/lib/is-uuid";
 import {
@@ -14,6 +14,12 @@ const UNAUTHORIZED_MESSAGE =
 
 const OPENAI_PROJ_HINT =
   "（1）APIキーは「そのプロジェクト」画面の API keys で新規発行した sk-proj- キーを使う（別プロジェクトやアカウント全体のキーだと無効になります）。（2）OPENAI_PROJECT_ID は proj_ で始まる Project ID です。org_ は Organization ID なので OPENAI_ORG_ID 用です。（3）複数組織の場合は OPENAI_ORG_ID（org_…）も .env.local に追加。（4）保存後に npm run dev を再起動。";
+
+function pickCustomPrompt(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const t = value.trim();
+  return t.length > 0 ? t : undefined;
+}
 
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
@@ -33,6 +39,16 @@ export async function POST(request: Request) {
       { status: 401 }
     );
   }
+
+  const auth = await requireAuth();
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: UNAUTHORIZED_MESSAGE },
+      { status: auth.status }
+    );
+  }
+
+  const { supabase } = auth;
 
   // 将来: organizationId を基にした利用制限・課金・レート制御など（ここで organizationId は確定済み）
 
@@ -71,12 +87,26 @@ export async function POST(request: Request) {
     );
   }
 
+  const { data: settingsRow, error: settingsError } = await supabase
+    .from("organization_settings")
+    .select("prompt_dar, prompt_soap")
+    .eq("organization_id", organizationId)
+    .single();
+
+  if (settingsError && settingsError.code !== "PGRST116") {
+    console.error("[api/generate] organization_settings select:", settingsError);
+  }
+
   try {
     const generatedText = await generateDraft(
       previousRecord.trim(),
       currentInput.trim(),
       promptType,
-      mode
+      mode,
+      {
+        customDar: pickCustomPrompt(settingsRow?.prompt_dar),
+        customSoap: pickCustomPrompt(settingsRow?.prompt_soap),
+      }
     );
 
     return NextResponse.json({ ai_output: generatedText });
