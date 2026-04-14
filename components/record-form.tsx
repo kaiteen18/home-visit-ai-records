@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, Textarea } from "@/components/ui";
+import { PatientPicker } from "@/components/patient-picker";
 import {
   VoiceMemoControls,
   VOICE_BROWSER_SPEECH_SUCCESS_MESSAGE,
@@ -315,33 +316,15 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
             患者
           </h2>
           <div className="space-y-2">
-            <label
-              htmlFor="patient-select"
-              className="block text-sm font-medium text-slate-700"
-            >
-              対象患者（必須）
-            </label>
-            <select
-              id="patient-select"
-              value={patientId}
-              onChange={(e) => setPatientId(e.target.value)}
-              disabled={busy || patientsLoading}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <option value="">
-                {patientsLoading ? "読み込み中..." : "患者を選択してください"}
-              </option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.patient_name}
-                </option>
-              ))}
-            </select>
-            {patientsError ? (
-              <p className="text-sm text-red-600" role="alert">
-                {patientsError}
-              </p>
-            ) : null}
+            <PatientPicker
+              patients={patients}
+              patientId={patientId}
+              onPatientIdChange={setPatientId}
+              disabled={busy}
+              loading={patientsLoading}
+              error={patientsError}
+            />
+
             <p className="text-sm text-slate-600">
               <Link
                 href="/patients/new"
