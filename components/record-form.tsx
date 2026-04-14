@@ -369,7 +369,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
           href="/admin/organization-members"
           className="text-accent underline hover:text-teal-700"
         >
-          組��メン��ー管理
+          組織メンバー管理
         </Link>
       </div>
 
@@ -385,7 +385,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
                 htmlFor="patient-search-input"
                 className="mb-1.5 block text-sm font-medium text-slate-700"
               >
-                対象患者（必��）
+                対象患者（必須）
               </label>
               <input
                 id="patient-search-input"
@@ -394,7 +394,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
                 enterKeyHint="search"
                 autoComplete="off"
                 placeholder={
-                  patientsLoading ? "読み込み中..." : "�り込み"
+                  patientsLoading ? "読み込み中..." : "患者名で絞り込み"
                 }
                 value={patientSearch}
                 onChange={(e) => setPatientSearch(e.target.value)}
@@ -448,7 +448,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
                   </li>
                 ) : filteredPatientsList.length === 0 ? (
                   <li className="px-3 py-4 text-center text-sm text-slate-500">
-                    ��当する患者がありません
+                    該当する患者がありません
                   </li>
                 ) : (
                   filteredPatientsList.map((p) => (
@@ -498,7 +498,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
           <form onSubmit={handleGenerate} className="space-y-5">
             <Textarea
               label="前回記録（任意）"
-              placeholder="前回の��問記録や��り付け"
+              placeholder="前回の訪問記録や貼り付け"
               value={previousRecord}
               onChange={(e) => setPreviousRecord(e.target.value)}
               rows={5}
@@ -507,8 +507,8 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
             />
 
             <Textarea
-              label="今回メモ（必��・AI生成に使用）"
-              placeholder="�察・ケア内容などを入力"
+              label="今回メモ（必須・AI生成に使用）"
+              placeholder="今回の観察・ケア内容などを入力"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               required
@@ -610,7 +610,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
                 </button>
               </div>
               <p className="text-xs text-slate-500">
-                通常は日々の記録向け。監査は第三者確認・指摘を意��した表現を優先します。
+                通常は日々の記録向け。監査は第三者確認・指摘を意識した表現を優先します。
               </p>
             </div>
 
@@ -631,7 +631,7 @@ export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
               2. AI出力（ai_output）
             </h2>
             <Textarea
-              label="生成結果（参照用・読み取り��用）"
+              label="生成結果（参照用・読み取り専用）"
               value={aiOutput}
               readOnly
               rows={12}
