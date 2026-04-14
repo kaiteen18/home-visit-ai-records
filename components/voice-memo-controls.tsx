@@ -1,15 +1,43 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
+
+/** クライアント側の上限（API の 25MB より厳しめ。アップロード前に検証） */
+export const VOICE_CLIENT_MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+
+export type VoiceApplyContext =
+  | { source: "whisper" }
+  | { source: "browser-speech" };
+
+/** 親の成功表示・トースト用（Whisper 経由） */
+export const VOICE_WHISPER_SUCCESS_MESSAGE =
+  "文字起こしが完了しました。「今回メモ」を確認し、問題なければ「AIで記録作成」を押してください。";
+
+/** 親の成功表示・トースト用（ブラウザ SpeechRecognition） */
+export const VOICE_BROWSER_SPEECH_SUCCESS_MESSAGE =
+  "ブラウザ音声を「今回メモ」に追記しました。内容を確認してください。";
 
 type Props = {
   disabled?: boolean;
-  /** 文字起こし結果を「今回メモ」へ反映（既に入力があるときは改行で追記） */
-  onApplyText: (text: string) => void;
+  /**
+   * 音声→テキストの反映。第2引数は Whisper 成功時・ブラウザ音声時に付与（省略可・後方互換）。
+   */
+  onApplyText: (text: string, context?: VoiceApplyContext) => void;
   onError: (message: string) => void;
   onBusyChange?: (busy: boolean) => void;
 };
+
+function formatMegabytes(bytes: number): string {
+  return (bytes / (1024 * 1024)).toFixed(0);
+}
+
+function preferRecordingOrFileOnApple(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) return true;
+  return /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome|Chromium/.test(ua);
+}
 
 function pickRecorderMime(): string | undefined {
   if (typeof MediaRecorder === "undefined") return undefined;
@@ -58,6 +86,8 @@ export function VoiceMemoControls({
     [onBusyChange]
   );
 
+  const appleRecordingHint = useMemo(() => preferRecordingOrFileOnApple(), []);
+
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -65,6 +95,13 @@ export function VoiceMemoControls({
 
   const uploadBlob = useCallback(
     async (blob: Blob, filename: string) => {
+      if (blob.size > VOICE_CLIENT_MAX_AUDIO_BYTES) {
+        onError(
+          `音声は ${formatMegabytes(VOICE_CLIENT_MAX_AUDIO_BYTES)}MB 以下にしてください（現在約 ${formatMegabytes(blob.size)}MB）。短く録音するか、圧縮・分割後に「音声ファイル」からアップロードしてください。`
+        );
+        return;
+      }
+
       const fd = new FormData();
       fd.append("file", blob, filename);
       setBusy(true);
@@ -96,7 +133,7 @@ export function VoiceMemoControls({
           onError("文字起こしの結果が空でした。もう一度録音するか、手入力してください。");
           return;
         }
-        onApplyText(text);
+        onApplyText(text, { source: "whisper" });
       } catch {
         onError("通信エラーです。ネットワークを確認するか、手入力してください。");
       } finally {
@@ -178,6 +215,12 @@ export function VoiceMemoControls({
         onError("ファイルが空です。");
         return;
       }
+      if (file.size > VOICE_CLIENT_MAX_AUDIO_BYTES) {
+        onError(
+          `音声ファイルは ${formatMegabytes(VOICE_CLIENT_MAX_AUDIO_BYTES)}MB 以下にしてください（現在約 ${formatMegabytes(file.size)}MB）。`
+        );
+        return;
+      }
       void uploadBlob(file, file.name);
     },
     [disabled, isTranscribing, onError, uploadBlob]
@@ -231,7 +274,7 @@ export function VoiceMemoControls({
         line += ev.results[i][0].transcript;
       }
       const t = line.trim();
-      if (t) onApplyText(t);
+      if (t) onApplyText(t, { source: "browser-speech" });
     };
 
     try {
@@ -322,8 +365,22 @@ export function VoiceMemoControls({
         ) : null}
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        録音・ファイルは OpenAI Whisper で文字起こしし、下の「今回メモ」に追記します。失敗時はそのままキーボード入力できます。
-        Safari では録音形式が異なることがあります。その場合は「音声ファイル」で共有してください。
+        {appleRecordingHint ? (
+          <>
+            <strong className="font-medium text-slate-600">iPhone / Safari では</strong>
+            「録音して文字起こし」またはボイスメモなどからの
+            <strong className="font-medium text-slate-600">「音声ファイル」</strong>
+            を優先してください。ブラウザ音声入力は環境によって不安定なことがあります。録音・ファイルは
+            OpenAI Whisper で文字起こしし、「今回メモ」に追記します（1ファイルあたり最大{" "}
+            {formatMegabytes(VOICE_CLIENT_MAX_AUDIO_BYTES)}MB）。失敗時はキーボードで手入力できます。
+          </>
+        ) : (
+          <>
+            録音・ファイルは OpenAI Whisper で文字起こしし、下の「今回メモ」に追記します（1ファイルあたり最大{" "}
+            {formatMegabytes(VOICE_CLIENT_MAX_AUDIO_BYTES)}MB）。失敗時はそのままキーボード入力できます。
+            Safari では「音声ファイル」で共有する方法もおすすめです。
+          </>
+        )}
       </p>
     </div>
   );

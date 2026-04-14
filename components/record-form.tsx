@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, Textarea } from "@/components/ui";
-import { VoiceMemoControls } from "@/components/voice-memo-controls";
+import {
+  VoiceMemoControls,
+  VOICE_BROWSER_SPEECH_SUCCESS_MESSAGE,
+  VOICE_WHISPER_SUCCESS_MESSAGE,
+  type VoiceApplyContext,
+} from "@/components/voice-memo-controls";
 import { fetchApi } from "@/lib/fetch-api";
 import { cn } from "@/lib/utils";
 import type { GenerationMode, PromptType } from "@/lib/prompts";
@@ -122,11 +127,15 @@ export function RecordForm() {
     setSuccessMessage(null);
   }
 
-  function applyVoiceText(text: string) {
+  function applyVoiceText(text: string, context?: VoiceApplyContext) {
     const t = text.trim();
     if (!t) return;
     setInputText((prev) => (prev.trim() ? `${prev.trim()}\n${t}` : t));
-    setSuccessMessage("音声をテキストに反映しました。内容を確認してから「AIで記録作成」を押してください。");
+    setSuccessMessage(
+      context?.source === "browser-speech"
+        ? VOICE_BROWSER_SPEECH_SUCCESS_MESSAGE
+        : VOICE_WHISPER_SUCCESS_MESSAGE
+    );
   }
 
   async function handleGenerate(e: React.FormEvent) {
@@ -366,9 +375,9 @@ export function RecordForm() {
 
             <VoiceMemoControls
               disabled={busy}
-              onApplyText={(t) => {
+              onApplyText={(t, ctx) => {
                 clearMessages();
-                applyVoiceText(t);
+                applyVoiceText(t, ctx);
               }}
               onError={(msg) => {
                 setSuccessMessage(null);
