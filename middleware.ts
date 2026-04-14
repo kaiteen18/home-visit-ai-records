@@ -60,7 +60,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/records") ||
     pathname.startsWith("/api/patients") ||
     pathname.startsWith("/api/admin") ||
-    pathname === "/api/generate";
+    pathname === "/api/generate" ||
+    pathname === "/api/transcribe";
 
   if (isProtected && !user) {
     if (pathname.startsWith("/api")) {
@@ -91,6 +92,7 @@ export const config = {
     "/api/patients/:path*",
     "/api/admin/:path*",
     "/api/generate",
+    "/api/transcribe",
     "/login",
     "/signup",
   ],

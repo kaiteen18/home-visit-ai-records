@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, Textarea } from "@/components/ui";
+import { VoiceMemoControls } from "@/components/voice-memo-controls";
 import { fetchApi } from "@/lib/fetch-api";
 import { cn } from "@/lib/utils";
 import type { GenerationMode, PromptType } from "@/lib/prompts";
@@ -29,12 +30,13 @@ export function RecordForm() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRevising, setIsRevising] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [recordId, setRecordId] = useState<string | null>(null);
 
-  const busy = isGenerating || isRevising || isSaving;
+  const busy = isGenerating || isRevising || isSaving || voiceBusy;
   const hasAiOutput = Boolean(aiOutput.trim());
   const hasPatient = Boolean(patientId.trim());
 
@@ -118,6 +120,13 @@ export function RecordForm() {
   function clearMessages() {
     setErrorMessage(null);
     setSuccessMessage(null);
+  }
+
+  function applyVoiceText(text: string) {
+    const t = text.trim();
+    if (!t) return;
+    setInputText((prev) => (prev.trim() ? `${prev.trim()}\n${t}` : t));
+    setSuccessMessage("音声をテキストに反映しました。内容を確認してから「AIで記録作成」を押してください。");
   }
 
   async function handleGenerate(e: React.FormEvent) {
@@ -353,6 +362,19 @@ export function RecordForm() {
               rows={6}
               className="bg-white"
               disabled={busy}
+            />
+
+            <VoiceMemoControls
+              disabled={busy}
+              onApplyText={(t) => {
+                clearMessages();
+                applyVoiceText(t);
+              }}
+              onError={(msg) => {
+                setSuccessMessage(null);
+                setErrorMessage(msg);
+              }}
+              onBusyChange={setVoiceBusy}
             />
 
             <div className="grid gap-2">
