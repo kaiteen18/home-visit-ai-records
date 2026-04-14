@@ -21,7 +21,7 @@ export default function NewRecordPage() {
           </Link>
         </div>
       </div>
-      <RecordForm />
+      <RecordForm showVoiceControls />
     </main>
   );
 }

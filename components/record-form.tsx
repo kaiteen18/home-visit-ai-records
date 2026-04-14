@@ -18,7 +18,14 @@ const REVISE_PLACEHOLDER =
 
 type Patient = { id: string; patient_name: string };
 
-export function RecordForm() {
+export type RecordFormProps = {
+  /**
+   * 音声メモ UI を出すか。/records/new では true（既定）、トップ等では false を想定。
+   */
+  showVoiceControls?: boolean;
+};
+
+export function RecordForm({ showVoiceControls = true }: RecordFormProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(true);
   const [patientsError, setPatientsError] = useState<string | null>(null);
@@ -373,18 +380,20 @@ export function RecordForm() {
               disabled={busy}
             />
 
-            <VoiceMemoControls
-              disabled={busy}
-              onApplyText={(t, ctx) => {
-                clearMessages();
-                applyVoiceText(t, ctx);
-              }}
-              onError={(msg) => {
-                setSuccessMessage(null);
-                setErrorMessage(msg);
-              }}
-              onBusyChange={setVoiceBusy}
-            />
+            {showVoiceControls ? (
+              <VoiceMemoControls
+                disabled={busy}
+                onApplyText={(t, ctx) => {
+                  clearMessages();
+                  applyVoiceText(t, ctx);
+                }}
+                onError={(msg) => {
+                  setSuccessMessage(null);
+                  setErrorMessage(msg);
+                }}
+                onBusyChange={setVoiceBusy}
+              />
+            ) : null}
 
             <div className="grid gap-2">
               <span className="text-sm font-medium text-slate-700">

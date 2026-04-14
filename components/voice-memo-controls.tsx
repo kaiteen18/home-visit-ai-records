@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 
 /** クライアント側の上限（API の 25MB より厳しめ。アップロード前に検証） */
@@ -68,6 +68,12 @@ export function VoiceMemoControls({
   onError,
   onBusyChange,
 }: Props) {
+  /** SSR では navigator/window が無いため、マウント後にのみ環境依存 UI を出してハイドレーション不一致を防ぐ */
+  const [envReady, setEnvReady] = useState(false);
+  useEffect(() => {
+    setEnvReady(true);
+  }, []);
+
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isDictating, setIsDictating] = useState(false);
@@ -86,7 +92,8 @@ export function VoiceMemoControls({
     [onBusyChange]
   );
 
-  const appleRecordingHint = useMemo(() => preferRecordingOrFileOnApple(), []);
+  const appleRecordingHint = envReady && preferRecordingOrFileOnApple();
+  const speechAvailable = envReady && Boolean(getSpeechRecognitionCtor());
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -312,11 +319,13 @@ export function VoiceMemoControls({
     };
   }, [stopDictation, stopStream]);
 
-  const speechAvailable = typeof window !== "undefined" && Boolean(getSpeechRecognitionCtor());
   const micBlocked = disabled || isTranscribing;
 
   return (
-    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-4">
+    <div
+      className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-4"
+      data-voice-memo-controls=""
+    >
       <p className="mb-3 text-xs font-medium text-slate-600">音声メモ（任意）</p>
       <div className="flex flex-wrap gap-2">
         <Button

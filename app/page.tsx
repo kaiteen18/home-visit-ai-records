@@ -8,7 +8,7 @@ export default function HomePage() {
       <h1 className="mb-8 text-center text-2xl font-bold text-ink md:text-3xl">
         訪問看護AI記録支援アプリ
       </h1>
-      <RecordForm />
+      <RecordForm showVoiceControls={false} />
     </main>
   );
 }
